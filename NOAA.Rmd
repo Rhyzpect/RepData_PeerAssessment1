@@ -1,0 +1,365 @@
+---
+title: "NOAA STORM DATABASE: EFFECTS ON POPULATION HEALTH AND THE ECONOMY"
+author: Rhyz C. Gomez
+output: html_document
+keep_md: true
+---
+
+
+
+## SYNOPSIS
+Every year the United States suffer from different types of natural calamities. These natural calamities or events cause different effects and damages to the US population and the economy.  With the NOAA Storm Database from 1950 to 2011, it is concluded that tornado has the greatest impact in the US population with casualties/injuries around 96997 individuals, followed by thunderstorm, flash flood, drought and lightning. Furthermore, flash flood causes the most damage in terms of the country's economy based on property damages and crop damages, causing billions of dollars. This is followed by hurricane, tornado and storm surge. Taking into consideration both the population health and the economy, tornado and flash flood have the greatest impact.        
+
+
+## DATA PROCESSING
+
+The data that is used in this project was downloaded from the [course web site][1]. There is some documentation of the database available at National Weather Service [Website][2].  
+
+The Storm Data is taken from the National Oceanic and Atmospheric Administration (NOAA) official publication. It documents the occurrence of weather phenomena that have intensive effect on human lives and the economy.  The data contains information from year 1950 to November 2011. 
+
+### Reading the Data
+
+The data is unzipped to the user's working directory and the `dplyr` and `qqplot2` packages are used to transform and plot the data.
+
+```{r loading,cache=TRUE,results='hide'}
+stormdata <- read.csv("repdata-data-StormData.csv")
+str(stormdata)
+```
+
+
+The `str` function is used to further understand the data. Further, the `table` function is utilized multiple times to see the EVTYPE columns and to organize the event types into their proper categories.
+
+### Cleaning the Data
+
+The columns needed for this analysis are the EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG and CROPDMGEXP. However, before subsetting the dataset there was a need to clean the data.  
+
+```{r ,message=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+Notice that the date column is in factor type and the state column in numeric type. Hence, transform columns first in the right format for better analysis. The event time could represent a single time or it could represent the beginning and ending times of an event. Again, the EVTYPE column needs to be processed and cleaned. Since the code for cleaning the data is long, the complete code is placed at the end of this document (Appendix A).     
+
+```{r storm2,ref.label="storm",echo=FALSE}
+```
+
+
+when transforming the data, the event type under excessive wind, excessive snow, excessively dry and excessive were put under the same category EXCESSIVE CONDITION. The event type under extreme wet, extreme wind, and extreme heat were put under EXTREME CONDITION. The event type under early freeze, early rain and early snow were now under EARLY CONDITION. Further, event types that fall in the same category are categorized into one. 
+
+### Subsetting the Data (Fatalities & Injuries)
+
+
+To analyze which types of event conditions are most harmful with respect to population health, we consider the FATALITIES and INJURIES column. Further a new column (FATALITIES_INJURIES) is created to give the total number of individuals that suffered and died in the said event. Then, we find the total number of fatalities/injuries per event type and consider only the events with more than 1,000 casualties/injuries.
+
+
+```{r fatality}
+FATALINJURY <- subset(stormdata,FATALITIES_INJURIES!=0)
+FATALINJURY <- FATALINJURY %>% select(EVTYPE,FATALITIES,INJURIES,FATALITIES_INJURIES)
+FATALINJURY<- FATALINJURY %>% group_by(EVTYPE)%>%summarise(Total_HealthRisk=sum(FATALITIES_INJURIES))
+FATALINJURY <- subset(FATALINJURY,Total_HealthRisk>1000)
+FATALINJURY$EVTYPE <- as.factor(FATALINJURY$EVTYPE)
+```
+
+
+
+### Subsetting the Data (Property and Crop Damages) 
+
+On the other hand, we consider the PROPDMG, PROPDMGEXP, CROPDMG and CROPDMGEXP columns to analyze which event types have the greatest economic consequences. These columns are considered because property damages and crop damages impact the economic state of an individual and a state.
+
+
+```{r damage}
+PROPDAMAGE <- subset(stormdata,PROPDMG!=0|CROPDMG!=0)
+```
+
+
+The code for cleaning and processing PROPDMG and CROPDMG is found at Appendix B. The new columns (PROPDMG and CROPDMG) were multiplied by their exponential components (PROPDMGEXP and CROPDMGEXP).
+
+
+```{r damage2,ref.label="damage3",echo=FALSE}
+```
+
+Since we only need to consider event types with greatest economic consequences, we subset the data and consider the event type with high damage cost.
+
+```{r damage4}
+PROPDAMAGE2 <- subset(PROPDAMAGE2,TOTALDMG>6000000000)
+```
+
+
+## RESULTS
+
+### Total Fatalities/Injuries Per Event Type Across the US
+
+```{r plot, fig.height=8, fig.width=19}
+EVENT <- FATALINJURY$EVTYPE
+qplot(factor(EVTYPE),Total_HealthRisk,data=FATALINJURY,fill=EVENT,main="TOTAL CASUALTIES/INJURIES ACROSS US PER EVENT",xlab="EVENT TYPE",ylab="TOTAL CASUALTIES/INJURIES",geom="bar",stat="identity")+geom_text(data=FATALINJURY,aes(x=EVTYPE,y=Total_HealthRisk+1000,label = Total_HealthRisk),cex=3,col="red")+theme_bw()
+```
+
+The figure above shows that tornadoes have the greatest impact in terms of population health followed by thunderstorm and flash flood.  There is actually a great gap in the number of casualties/injuries between the different events. 
+
+
+### Total Damages Per Event Type Across US
+
+```{r plot2, fig.height=8, fig.width=19}
+qplot(factor(EVTYPE),TOTALDMG/1000000,data=PROPDAMAGE2,fill=PROPDAMAGE2$EVTYPE,main="TOTAL DAMAGES OF EVENTS ACROSS US IN 1950 to 2011",xlab="EVENT TYPE",ylab="TOTAL DAMAGES IN MILLIONS OF DOLLARS",geom="bar",stat="identity")+theme_classic()
+
+```
+
+The plot above shows that millions of dollars are spent due to natural calamities. The most damages are caused by flash flood amounting to billions of dollars. 
+
+
+
+
+[1]: https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2 "course web site"
+[2]:  http://www.nws.noaa.gov/directives/ "Website"
+
+## APPENDIX A
+```{r storm,cache=TRUE,eval=FALSE,results='hide'}
+stormdata$BGN_DATE <- as.Date(stormdata$BGN_DATE,"%m/%d/%Y %H:%M:%S",tz=stormdata$TIME_ZONE)
+stormdata$STATE__ <- as.factor(stormdata$STATE__)
+stormdata$COUNTY <- as.factor(stormdata$COUNTY)
+stormdata$BGN_TIME <- paste(stormdata$BGN_TIME,stormdata$TIME_ZONE,sep=" ")
+stormdata <- stormdata[,-4]
+stormdata$FATALITIES_INJURIES <- stormdata$FATALITIES + stormdata$INJURIES
+stormdata$EVTYPE <- as.character(stormdata$EVTYPE)
+blizzard <- grepl("bliz",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[blizzard,"EVTYPE"] <- "BLIZZARD"
+blowingsnow <- grepl("blowing snow",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[blowingsnow,"EVTYPE"] <- "BLOWING SNOW"
+coastalflood <- grepl("coastal flood",stormdata$EVTYPE,ignore.case = TRUE)|grepl("coastalflood",stormdata$EVTYPE,ignore.case = TRUE)|grepl("coastal  flood",stormdata$EVTYPE,ignore.case = TRUE)|grepl("coastal/tidal flood",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[coastalflood,"EVTYPE"] <- "COASTAL FLOOD"
+coastalstorm <- grepl("coastal storm",stormdata$EVTYPE,ignore.case = TRUE)|grepl("coastalstorm",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[coastalstorm,"EVTYPE"] <- "COASTAL STORM"
+cold <- grepl("cold",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[cold,"EVTYPE"] <- "COLD"
+freeze <- grepl("damaging freeze",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[freeze,"EVTYPE"] <- "FREEZE"
+dam <- grepl("dam break",stormdata$EVTYPE,ignore.case=TRUE)|grepl("dam failure",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[dam,"EVTYPE"] <- "DAM FAILURE"
+beacherosion <- grepl("beach erosion",stormdata$EVTYPE,ignore.case = TRUE)|grepl("beach erosin",stormdata$EVTYPE,ignore.case=TRUE)|grepl("cstl flood",stormdata$EVTYPE,ignore.case = TRUE)|grepl("coastal",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[beacherosion,"EVTYPE"] <- "COASTAL FLOOD"
+stormdata[stormdata$EVTYPE=="AVALANCE","EVTYPE"] <- "AVALANCHE"
+flashflood <- grepl("flash flood",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[flashflood,"EVTYPE"] = "FLASH FLOOD"
+ stormdata[stormdata$EVTYPE=="flood","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOOD","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLASH FLOOODING","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOOD FLASH","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOOD FLOOD/FLASH","EVTYPE"] = "FLASH FLOOD"
+FLASH <- grepl("flash",stormdata$EVTYPE,ignore.case=TRUE)|grepl("flood watch",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[FLASH,"EVTYPE"] <- "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="Flood","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOOD/RAIN/WIND","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOOD/RIVER FLOOD","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOOD/RAIN/WINDS","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOOD/Strong Wind","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="Flood/Strong Wind","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOOD & HEAVY RAIN","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOODS","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOODING","EVTYPE"] = "FLASH FLOOD"
+stormdata[stormdata$EVTYPE=="FLOODING/HEAVY RAIN","EVTYPE"] = "FLASH FLOOD"
+DRYMICROBURST <- grepl("dry microburst",stormdata$EVTYPE,ignore.case = TRUE)|grepl("dry hot",stormdata$EVTYPE,ignore.case = TRUE)|grepl("dry con",stormdata$EVTYPE,ignore.case = TRUE)|grepl("dry pat",stormdata$EVTYPE,ignore.case = TRUE)|grepl("dry spell",stormdata$EVTYPE,ignore.case = TRUE)|grepl("dryness",stormdata$EVTYPE,ignore.case = TRUE)|grepl("dry weather",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[DRYMICROBURST,"EVTYPE"] <- "DRY CONDITION"
+wildfire <- grepl("fire",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[wildfire,"EVTYPE"] <- "WILD FIRE"
+WINTERSTORM <- grepl("winter storm",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[WINTERSTORM,"EVTYPE"] <- "WINTER STORM"
+WINTERWEATHER <- grepl("winter weather",stormdata$EVTYPE,ignore.case = TRUE)|grepl("wintry",stormdata$EVTYPE,ignore.case = TRUE)|grepl("wintery",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[WINTERWEATHER,"EVTYPE"] <- "WINTER WEATHER"
+waterspout <- grepl("waterspout",stormdata$EVTYPE,ignore.case=TRUE)|grepl("wayterspout",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[waterspout,"EVTYPE"] <- "WATERSPOUT"
+sleet <- grepl("freezing rain",stormdata$EVTYPE,ignore.case=TRUE)|grepl("freezing drizzle",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[sleet,"EVTYPE"] <- "SLEET"
+stormdata[stormdata$EVTYPE=="FROST","EVTYPE"] <- "FREEZE"
+stormdata[stormdata$EVTYPE=="Freeze","EVTYPE"] <- "FREEZE"
+stormdata[stormdata$EVTYPE=="Frost","EVTYPE"] <- "FREEZE"
+stormdata[stormdata$EVTYPE=="Frost/Freeze","EVTYPE"] <- "FREEZE"
+frost <- grepl("frost",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[frost,"EVTYPE"] <- "FREEZE"
+funnel <- grepl("funnel",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[funnel,"EVTYPE"] <- "FUNNEL CLOUD"
+dustdevil <- grepl("dust devil",stormdata$EVTYPE,ignore.case = TRUE)|grepl("dust devel",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[dustdevil,"EVTYPE"] <- "DUST DEVIL"
+drought <- grepl("drought",stormdata$EVTYPE,ignore.case = TRUE)|grepl("excessive heat",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[drought,"EVTYPE"] <- "DROUGHT"
+extremewind <- grepl("extreme wind",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[extremewind,"EVTYPE"] <- "EXTREME WIND"
+gradient <- grepl("gradient",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[gradient,"EVTYPE"] <- "GRADIENT WIND"
+hail <- grepl("hail",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[hail, "EVTYPE"]<-"HAIL"
+gustywind <- grepl("gusty wind",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[gustywind,"EVTYPE"] <- "GUSTY WIND"
+heatwave <- grepl("heat wave",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[heatwave,"EVTYPE"] <- "HEAT WAVE"
+stormdata[stormdata$EVTYPE=="HEAT","EVTYPE"] <- "HEAT WAVE"
+heavyrain <- grepl("heavy rain",stormdata$EVTYPE,ignore.case = TRUE)|grepl("heavy precip",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[heavyrain,"EVTYPE"] <- "HEAVY RAIN"
+stormdata[stormdata$EVTYPE=="HEAVY SHOWER","EVTYPE"] <- "HEAVY RAIN"
+stormdata[stormdata$EVTYPE=="HEAVY SHOWERS","EVTYPE"] <- "HEAVY RAIN"
+heavysnow <- grepl("heavy snow",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[heavysnow,"EVTYPE"] <- "HEAVY SNOW"
+highsurf <- grepl("surf",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[highsurf,"EVTYPE"] <- "HIGH SURF"
+hurricane <- grepl("hurricane",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[hurricane,"EVTYPE"] <- "HURRICANE"
+lightning <- grepl("lightning",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[lightning,"EVTYPE"] <- "LIGHTNING"
+stormdata[stormdata$EVTYPE=="Black Ice","EVTYPE"] <- "BLACK ICE"
+stormdata[stormdata$EVTYPE=="TSTM WIND (G45)","EVTYPE"] <- "TSTM WIND"
+highwind <- grepl("high wind",stormdata$EVTYPE,ignore.case=TRUE) 
+stormdata[highwind,"EVTYPE"]<- "HIGH WIND"
+stormdata[stormdata$EVTYPE=="BITTER WIND CHILL TEMPERATURES","EVTYPE"] <- "BITTER WIND CHILL"
+stormdata[stormdata$EVTYPE=="BLOW-OUT TIDE"|stormdata$EVTYPE=="BLOW-OUT TIDES","EVTYPE"] <- "BLOW OUT TIDE"
+stormdata[stormdata$EVTYPE=="BREAKUP FLOODING","EVTYPE"] <- "COASTAL FLOOD"
+stormdata[stormdata$EVTYPE=="COOL AND WET","EVTYPE"] <- "COLD"
+stormdata[stormdata$EVTYPE=="COOL SPELL","EVTYPE"] <- "COLD"
+stormdata[stormdata$EVTYPE=="DRIEST MONTH","EVTYPE"] <- "DROUGHT"
+stormdata[stormdata$EVTYPE=="DRY CONDITION","EVTYPE"] <- "DRY"
+stormdata[stormdata$EVTYPE=="DUSTSTORM","EVTYPE"] <- "DUST STORM"
+stormdata[stormdata$EVTYPE=="EARLY SNOWFALL"|stormdata$EVTYPE=="Early snowfall","EVTYPE"] <- "EARLY SNOW"
+stormdata[stormdata$EVTYPE=="EXCESSIVE WETNESS"|stormdata$EVTYPE=="EXCESSIVE RAINFALL"|stormdata$EVTYPE=="EXCESSIVE PRECIPITATION","EVTYPE"] <- "EXCESSIVE RAIN"
+stormdata[stormdata$EVTYPE=="HIGH WAVES"|stormdata$EVTYPE=="HIGH TIDES"|stormdata$EVTYPE=="HIGH SEAS"|stormdata$EVTYPE=="HIGH WATER","EVTYPE"] <- "HIGH SURF"
+stormdata[stormdata$EVTYPE=="HVY RAIN","EVTYPE"] <- "HEAVY RAIN"
+stormdata[stormdata$EVTYPE=="Hypothermia/Exposure"|stormdata$EVTYPE=="HYPOTHERMIA/EXPOSURE","EVTYPE"] <- "HYPOTHERMIA"
+stormdata[stormdata$EVTYPE=="HIGH  SWELLS"|stormdata$EVTYPE=="HEAVY SWELLS"|stormdata$EVTYPE=="HIGH SWELLS"|stormdata$EVTYPE=="HIGH","EVTYPE"] <- "HIGH SURF"
+ice <- grepl("ice",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[ice,"EVTYPE"] <- "ICE"
+stormdata[stormdata$EVTYPE=="LAKE-EFFECT SNOW"|stormdata$EVTYPE=="Lake Effect Snow","EVTYPE"] <- "LAKE EFFECT SNOW"
+stormdata[stormdata$EVTYPE=="Icy Roads"|stormdata$EVTYPE=="ICY ROADS","EVTYPE"] <- "ICE"
+stormdata[stormdata$EVTYPE=="LAKE FLOOD","EVTYPE"] <- "LAKESHORE FLOOD"
+landslide <- grepl("landslide",stormdata$EVTYPE,ignore.case=TRUE)|grepl("urban flood",stormdata$EVTYPE,ignore.case=TRUE)|grepl("landslump",stormdata$EVTYPE,ignore.case=TRUE)|grepl("landspout",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[landslide,"EVTYPE"] <- "LANDSLIDE"
+stormdata[stormdata$EVTYPE=="HIGH TEMPERATURE RECORD"|stormdata$EVTYPE=="HOT PATTERN"|stormdata$EVTYPE=="HOT SPELL"|stormdata$EVTYPE=="Hot and Dry","EVTYPE"] <- "HOT WEATHER"
+stormdata[stormdata$EVTYPE=="Late-season Snowfall"|stormdata$EVTYPE=="LATE FREEZE"|stormdata$EVTYPE=="LATE SEASON SNOW"|stormdata$EVTYPE=="Late Season Snowfall","EVTYPE"] <- "LATE SNOW"
+lightsnow <- grepl("light snow",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[lightsnow,"EVTYPE"] <- "LIGHT SNOW"
+stormdata[stormdata$EVTYPE=="MARINE MISHAP","EVTYPE"] <- "Marine Accident"
+stormdata[stormdata$EVTYPE=="MARINE TSTM WIND","EVTYPE"] <- "MARINE THUNDERSTORM WIND"
+stormdata[stormdata$EVTYPE=="MICROBURST WINDS"|stormdata$EVTYPE=="Microburst","EVTYPE"] <- "MICROBURST"
+stormdata[stormdata$EVTYPE=="MINOR FLOODING"|stormdata$EVTYPE=="Minor Flooding","EVTYPE"] <- "MINOR FLOOD"
+stormdata[stormdata$EVTYPE=="MIXED PRECIP"|stormdata$EVTYPE=="Mixed Precipitation","EVTYPE"] <- "MIXED PRECIPITATION"
+stormdata[stormdata$EVTYPE=="MODERATE SNOWFALL","EVTYPE"] <- "MODERATE SNOW"
+stormdata[stormdata$EVTYPE=="Monthly Rainfall"|stormdata$EVTYPE=="MONTHLY PRECIPITATION","EVTYPE"] <- "MONTHLY RAINFALL"
+stormdata[stormdata$EVTYPE=="Monthly Snowfall","EVTYPE"] <- "MONTHLY SNOWFALL"
+stormdata[stormdata$EVTYPE=="MUD SLIDES","EVTYPE"] <- "MUD SLIDE"
+stormdata[stormdata$EVTYPE=="Mudslides"|stormdata$EVTYPE=="MUDSLIDES"|stormdata$EVTYPE=="MUDSLIDE"|stormdata$EVTYPE=="Mudslide"|stormdata$EVTYPE=="MUD/ROCK SLIDE","EVTYPE"] <- "MUD SLIDE"
+stormdata[stormdata$EVTYPE=="NON TSTM WIND","EVTYPE"] <- "NON-TSTM WIND"
+stormdata[stormdata$EVTYPE=="Other","EVTYPE"] <- "OTHER"
+stormdata[stormdata$EVTYPE=="PATCHY DENSE FOG","EVTYPE"] <- "DENSE FOG"
+stormdata[stormdata$EVTYPE=="RAIN/WIND","EVTYPE"] <- "RAIN AND WIND"
+stormdata[stormdata$EVTYPE=="RAIN (HEAVY)","EVTYPE"] <- "RAINSTORM"
+stormdata[stormdata$EVTYPE=="RAIN/SNOW","EVTYPE"] <- "SLEET"
+stormdata[stormdata$EVTYPE=="Record Heat","EVTYPE"] <- "RECORD HEAT"
+stormdata[stormdata$EVTYPE=="Record High","EVTYPE"] <- "RECORD HIGH"
+stormdata[stormdata$EVTYPE=="RECORD HIGH"|stormdata$EVTYPE=="RECORD HIGH TEMPERATURES"|stormdata$EVTYPE=="RECORD HEAT","EVTYPE"] <- "RECORD HIGH TEMPERATURE"
+stormdata[stormdata$EVTYPE=="Record Temperatures"|stormdata$EVTYPE=="Record temperature"|stormdata$EVTYPE=="RECORD TEMPERATURES","EVTYPE"] <- "RECORD TEMPERATURE"
+stormdata[stormdata$EVTYPE=="RECORD WARMTH"|stormdata$EVTYPE=="Record Warmth"|stormdata$EVTYPE=="RECORD WARM"|stormdata$EVTYPE=="RECORD WARM TEMPS.","EVTYPE"] <- "RECORD WARM TEMPERATURE"
+stormdata[stormdata$EVTYPE=="RIP CURRENTS","EVTYPE"] <- "RIP CURRENT"
+stormdata[stormdata$EVTYPE=="RIVER AND STREAM FLOOD"|stormdata$EVTYPE=="River Flooding"|stormdata$EVTYPE=="RIVER FLOODING","EVTYPE"] <- "RIVER FLOOD"
+stormdata[stormdata$EVTYPE=="Saharan Dust","EVTYPE"] <- "SAHARA DUST"
+stormdata[stormdata$EVTYPE=="SAHARAN DUST","EVTYPE"] <- "SAHARA DUST"
+stormdata[stormdata$EVTYPE=="SEVERE TURBULENCE"|stormdata$EVTYPE=="SEVERE THUNDERSTORMS"|stormdata$EVTYPE=="SEVERE THUNDERSTORM WINDS","EVTYPE"] <- "SEVERE THUNDERSTORM"
+stormdata[stormdata$EVTYPE=="SLEET/SNOW"|stormdata$EVTYPE=="SLEET/RAIN/SNOW"|stormdata$EVTYPE=="SLEET STORM","EVTYPE"] <- "SLEET"
+stormdata[stormdata$EVTYPE=="SMALL STREAM FLOOD"|stormdata$EVTYPE=="SMALL STREAM AND"|stormdata$EVTYPE=="SMALL STREAM"|stormdata$EVTYPE=="SMALL STREAM FLOODING"|stormdata$EVTYPE=="SML Stream Fld","EVTYPE"] <- "STREAM FLOOD"
+SLEET <- grepl("sleet",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[SLEET,"EVTYPE"]<- "SLEET"
+stormdata[stormdata$EVTYPE=="SNOW AND WIND"|stormdata$EVTYPE=="SNOW SHOWERS"|stormdata$EVTYPE=="SNOW SQUALL"|stormdata$EVTYPE=="Snow Squalls"|stormdata$EVTYPE=="SNOW SQUALLS"|stormdata$EVTYPE=="SNOWFALL RECORD"|stormdata$EVTYPE=="SNOW ADVISORY"|stormdata$EVTYPE=="SNOW ACCUMULATION"|stormdata$EVTYPE=="Snow Accumulation"|stormdata$EVTYPE=="Snow","EVTYPE"] <- "SNOW"
+stormdata[stormdata$EVTYPE=="SNOW/RAIN","EVTYPE"] <- "SLEET"
+stormdata[stormdata$EVTYPE=="STORM SURGE/TIDE","EVTYPE"] <- "STORM SURGE"
+stormdata[stormdata$EVTYPE=="STREET FLOODING","EVTYPE"] <- "STREET FLOOD"
+stormdata[stormdata$EVTYPE=="Strong Winds"|stormdata$EVTYPE=="Strong winds"|stormdata$EVTYPE=="STRONG WIND GUST"|stormdata$EVTYPE=="STRONG WINDS"|stormdata$EVTYPE=="Strong Wind","EVTYPE"] <- "STRONG WIND"
+summary <- grepl("summary",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[summary,"EVTYPE"] <- "SUMMARY"
+stormdata <- subset(stormdata,stormdata$EVTYPE!="SUMMARY")
+thunderstorm <- grepl("thunder",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[thunderstorm,"EVTYPE"]<-"THUNDERSTORM"
+stormdata[stormdata$EVTYPE=="THUDERSTORM WINDS"|stormdata$EVTYPE=="THUNDEERSTORM WINDS"|stormdata$EVTYPE=="THUNDESTORM WINDS"|stormdata$EVTYPE=="THUNERSTORM WINDS","EVTYPE"] <- "THUNDERSTORM"
+stormdata[stormdata$EVTYPE=="TIDAL FLOOD"|stormdata$EVTYPE=="Tidal Flooding"|stormdata$EVTYPE=="TIDAL FLOODING","EVTYPE"] <- "COASTAL FLOOD"
+TORNADO <- grepl("tornado",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[TORNADO,"EVTYPE"]<- "TORNADO"
+stormdata[stormdata$EVTYPE=="TORNDAO","EVTYPE"] <- "TORNADO"
+tstm <- grepl("tstm wind",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[tstm,"EVTYPE"]<- "THUNDERSTORM"
+stormdata[stormdata$EVTYPE=="Torrential Rainfall","EVTYPE"] <- "TORRENTIAL RAIN"
+tropical <- grepl("tropical storm",stormdata$EVTYPE,ignore.case = TRUE)
+stormdata[tropical,"EVTYPE"]<- "TROPICAL STORM"
+stormdata[stormdata$EVTYPE=="TROPICAL DEPRESSION","EVTYPE"] <- "TROPICAL STORM"
+stormdata[stormdata$EVTYPE=="TSTM"|stormdata$EVTYPE=="TSTM WND"|stormdata$EVTYPE=="TSTMW"|stormdata$EVTYPE=="TUNDERSTORM WIND","EVTYPE"] <- "THUNDERSTORM"
+stormdata[stormdata$EVTYPE=="UNSEASONABLY WARM/WET"|stormdata$EVTYPE=="UNSEASONABLY WARM & WET"|stormdata$EVTYPE=="UNSEASONABLY WARM YEAR","EVTYPE"] <- "UNSEASONABLY WARM"
+UNSEASON <- grepl("unseason",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[UNSEASON,"EVTYPE"]<- "UNSEASONED WEATHER"
+UNUSUAL <- grepl("unusual",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[UNUSUAL,"EVTYPE"]<- "UNUSUAL WEATHER"
+UrbanFlood <- grepl("urban fl",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[UrbanFlood,"EVTYPE"]<- "URBAN FLOOD"
+urbanflood <- grepl("urban and small",stormdata$EVTYPE,ignore.case=TRUE)|grepl("urban small",stormdata$EVTYPE,ignore.case=TRUE)|grepl("urban/small",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[urbanflood,"EVTYPE"]<- "URBAN FLOOD"
+stormdata[stormdata$EVTYPE=="URBAN/STREET FLOODING"|stormdata$EVTYPE=="URBAN/SML STREAM FLDG"|stormdata$EVTYPE=="URBAN/SML STREAM FLD","EVTYPE"] <- "URBAN FLOOD"
+stormdata[stormdata$EVTYPE=="STREET FLOOD","EVTYPE"] <- "URBAN FLOOD"
+VOLCANIC <- grepl("volcanic",stormdata$EVTYPE,ignore.case=TRUE)
+stormdata[VOLCANIC,"EVTYPE"]<- "VOLCANIC ERUPTION"
+stormdata[stormdata$EVTYPE=="WATER SPOUT","EVTYPE"] <- "WATERSPOUT"
+stormdata[stormdata$EVTYPE=="VOG","EVTYPE"] <- "FOG"
+stormdata[stormdata$EVTYPE=="Whirlwind","EVTYPE"] <- "WHIRLWIND"
+stormdata[stormdata$EVTYPE=="wet microburst"|stormdata$EVTYPE=="WET MICROBURST"|stormdata$EVTYPE=="Wet Month"|stormdata$EVTYPE=="WET SNOW"|stormdata$EVTYPE=="WET WEATHER"|stormdata$EVTYPE=="Wet Year","EVTYPE"] <- "WET"
+stormdata[stormdata$EVTYPE=="Wind","EVTYPE"] <- "WIND"
+stormdata[stormdata$EVTYPE=="wet micoburst","EVTYPE"] <- "WET"
+stormdata[stormdata$EVTYPE=="WIND ADVISORY"|stormdata$EVTYPE=="WIND AND WAVE"|stormdata$EVTYPE=="WIND CHILL"|stormdata$EVTYPE=="WIND GUSTS"|stormdata$EVTYPE=="WIND DAMAGE"|stormdata$EVTYPE=="Wind Damage","EVTYPE"] <- "WIND"
+stormdata[stormdata$EVTYPE=="WINDS"|stormdata$EVTYPE=="WND"|stormdata$EVTYPE=="WIND STORM","EVTYPE"] <- "WIND"
+stormdata[stormdata$EVTYPE=="WINTER WEATHER"|stormdata$EVTYPE=="WINTER MIX","EVTYPE"] <- "WINTER STORM"
+stormdata[stormdata$EVTYPE=="Sml Stream Fld","EVTYPE"] <- "STREAM FLOOD"
+stormdata[stormdata$EVTYPE=="Freezing Fog","EVTYPE"] <- "FREEZING FOG"
+stormdata[stormdata$EVTYPE=="Freezing Spray","EVTYPE"] <- "FREEZE"
+stormdata[stormdata$EVTYPE=="GUSTNADO AND","EVTYPE"] <- "GUSTNADO"
+stormdata[stormdata$EVTYPE=="Heatburst","EVTYPE"] <- "HEAT WAVE"
+stormdata[stormdata$EVTYPE=="HEAVY WET SNOW","EVTYPE"] <- "HEAVY SNOW"
+stormdata[stormdata$EVTYPE=="HIGH WINDS","EVTYPE"] <- "HIGH WIND"
+stormdata[stormdata$EVTYPE=="HIGHWAY FLOODING","EVTYPE"] <- "URBAN FLOOD"
+stormdata[stormdata$EVTYPE=="HIGH  WINDS","EVTYPE"] <- "HIGH WIND"
+stormdata[stormdata$EVTYPE=="EXCESSIVE RAIN"|stormdata$EVTYPE=="EXCESSIVE"|stormdata$EVTYPE=="EXCESSIVE SNOW"|stormdata$EVTYPE=="EXCESSIVE WIND"|stormdata$EVTYPE=="EXCESSIVELY DRY","EVTYPE"] <- "EXCESSIVE CONDITION"
+stormdata[stormdata$EVTYPE=="EXTREMELY WET"|stormdata$EVTYPE=="EXTREME WIND"|stormdata$EVTYPE=="EXTREME HEAT","EVTYPE"] <- "EXTREME CONDITION"
+stormdata[stormdata$EVTYPE=="DRY MIRCOBURST WINDS","EVTYPE"] <- "DRY"
+stormdata[stormdata$EVTYPE=="Glaze","EVTYPE"] <- "GLAZE"
+stormdata[stormdata$EVTYPE=="EARLY FREEZE"|stormdata$EVTYPE=="EARLY RAIN"|stormdata$EVTYPE=="EARLY SNOW","EVTYPE"] <- "EARLY CONDITION"
+stormdata[stormdata$EVTYPE=="GRADIENT WIND"|stormdata$EVTYPE=="GUSTY LAKE WIND","EVTYPE"] <- "GUSTY WIND"
+stormdata[stormdata$EVTYPE=="DOWNBURST","EVTYPE"] <- "DOWNBURST WINDS"
+stormdata[stormdata$EVTYPE=="HARD FREEZE","EVTYPE"] <- "FREEZE"
+stormdata[stormdata$EVTYPE=="LIGHTING"|stormdata$EVTYPE=="LIGNTNING","EVTYPE"] <- "LIGHTNING"
+stormdata[stormdata$EVTYPE=="LIGHTING"|stormdata$EVTYPE=="LOW TEMPERATURE RECORD","EVTYPE"] <- "LOW TEMPERATURE"
+stormdata[stormdata$EVTYPE=="PROLONGED RAIN","EVTYPE"] <- "RAIN"
+stormdata[stormdata$EVTYPE=="MUD SLIDE","EVTYPE"] <- "LANDSLIDE"
+stormdata[stormdata$EVTYPE=="RECORD LOW RAINFALL","EVTYPE"] <- "RAIN"
+stormdata[stormdata$EVTYPE=="RECORD RAINFALL","EVTYPE"] <- "RAIN"
+stormdata[stormdata$EVTYPE=="RAIN AND WIND","EVTYPE"] <- "RAIN"
+stormdata[stormdata$EVTYPE=="RAINSTORM","EVTYPE"] <- "RAIN"
+stormdata[stormdata$EVTYPE=="Rain Damage","EVTYPE"] <- "RAIN"
+stormdata[stormdata$EVTYPE=="RECORD PRECIPITATION","EVTYPE"] <- "RAIN"
+stormdata[stormdata$EVTYPE=="RECORD SNOW"|stormdata$EVTYPE=="RECORD SNOWFALL","EVTYPE"] <- "SNOW"
+stormdata[stormdata$EVTYPE=="Record Winter Snow"|stormdata$EVTYPE=="Record May Snow","EVTYPE"] <- "SNOW"
+stormdata[stormdata$EVTYPE=="RECORD/EXCESSIVE RAINFALL","EVTYPE"] <- "HEAVY RAIN"
+stormdata[stormdata$EVTYPE=="Seasonal Snowfall","EVTYPE"] <- "SNOW"
+stormdata[stormdata$EVTYPE=="SNOWMELT FLOODING","EVTYPE"] <- "SLEET"
+stormdata[stormdata$EVTYPE=="STREAM FLOODING","EVTYPE"] <- "STREAM FLOOD"
+stormdata[stormdata$EVTYPE=="Temperature record","EVTYPE"] <- "RECORD TEMPERATURE"
+```
+
+
+## APPENDIX B
+```{r damage3,cache=TRUE,eval=FALSE}
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP=="K","PROPDMG"]<-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP=="K","PROPDMG"]*1000 
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP=="m"|PROPDAMAGE$PROPDMGEXP=="M","PROPDMG"] <-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP=="m"|PROPDAMAGE$PROPDMGEXP=="M","PROPDMG"]*1000000 
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP=="h"|PROPDAMAGE$PROPDMGEXP=="H"|PROPDAMAGE$PROPDMGEXP==2,"PROPDMG"] <-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP=="h"|PROPDAMAGE$PROPDMGEXP=="H"|PROPDAMAGE$PROPDMGEXP==2,"PROPDMG"]*100
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==3,"PROPDMG"] <-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==3,"PROPDMG"]*1000
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==4,"PROPDMG"] <-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==4,"PROPDMG"]*10000 
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==5,"PROPDMG"] <-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==5,"PROPDMG"]*100000 
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==6,"PROPDMG"] <-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==6,"PROPDMG"]*1000000 
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==7,"PROPDMG"] <-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP==7,"PROPDMG"]*10000000 
+PROPDAMAGE[PROPDAMAGE$PROPDMGEXP=="B","PROPDMG"] <-PROPDAMAGE[PROPDAMAGE$PROPDMGEXP=="B","PROPDMG"]*1000000000
+PROPDAMAGE[PROPDAMAGE$CROPDMGEXP=="B","CROPDMG"] <-PROPDAMAGE[PROPDAMAGE$CROPDMGEXP=="B","CROPDMG"]*1000000000 
+PROPDAMAGE[PROPDAMAGE$CROPDMGEXP=="K"|PROPDAMAGE$CROPDMGEXP=="k","CROPDMG"] <-PROPDAMAGE[PROPDAMAGE$CROPDMGEXP=="K"|PROPDAMAGE$CROPDMGEXP=="k","CROPDMG"]*1000 
+PROPDAMAGE[PROPDAMAGE$CROPDMGEXP=="M"|PROPDAMAGE$CROPDMGEXP=="m","CROPDMG"] <-PROPDAMAGE[PROPDAMAGE$CROPDMGEXP=="M"|PROPDAMAGE$CROPDMGEXP=="m","CROPDMG"]*1000000 
+PROPDAMAGE$TOTALDMG <- PROPDAMAGE$PROPDMG + PROPDAMAGE$CROPDMG
+PROPDAMAGE <- PROPDAMAGE %>% group_by(EVTYPE)%>%summarise(TOTALDMG=sum(TOTALDMG))
+PROPDAMAGE$EVTYPE <- as.factor(PROPDAMAGE$EVTYPE)
+PROPDAMAGE2 <- PROPDAMAGE
+```
